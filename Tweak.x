@@ -201,6 +201,27 @@ void *$dlopen(const char *path, int mode)
 	return dlopen_orig(path, mode);
 }
 
+#include <sys/stat.h>
+bool pathFileEqual(const char* path1, const char* path2)
+{
+	if(!path1 || !path2) return false;
+
+	struct stat st1;
+	if(stat(path1, &st1) != 0)
+		return false;
+
+	struct stat st2;
+	if(stat(path2, &st2) != 0)
+		return false;
+	
+	if(st1.st_dev != st2.st_dev || st1.st_ino != st2.st_ino) 
+		return false;
+
+	return true;
+}
+
+#include "fishhook.h"
+
 %ctor {
 	@autoreleasepool {
 		HBLogDebugWeak(@"Choicy loaded");
@@ -292,20 +313,45 @@ void *$dlopen(const char *path, int mode)
 				}
 			}
 
-			// Apply Choicy dlopen hooks
-			MSImageRef libdyldImage = MSGetImageByName("/usr/lib/system/libdyld.dylib");
-			void *libdyldHandle = dlopen("/usr/lib/system/libdyld.dylib", RTLD_NOW);
+			// // Apply Choicy dlopen hooks
+			// MSImageRef libdyldImage = MSGetImageByName("/usr/lib/system/libdyld.dylib");
+			// void *libdyldHandle = dlopen("/usr/lib/system/libdyld.dylib", RTLD_NOW);
 
-			void *dlopen_global_var_ptr = MSFindSymbol(libdyldImage, "__ZN5dyld45gDyldE"); // if this var exists, it means we're on a version new enough to hook dlopen directly again
-			if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_14_1 && !dlopen_global_var_ptr) {
-				void *dlopen_internal_ptr = MSFindSymbol(libdyldImage, "__ZL15dlopen_internalPKciPv");
-				MSHookFunction(dlopen_internal_ptr, (void *)$dlopen_internal, (void* *)&dlopen_internal_orig);
-			}
-			else {
-				MSHookFunction(&dlopen, (void *)$dlopen, (void* *)&dlopen_orig);
-				void *dlopen_from_ptr = dlsym(libdyldHandle, "dlopen_from");
-				if (dlopen_from_ptr) {
-					MSHookFunction(dlopen_from_ptr, (void *)$dlopen_internal, (void* *)&dlopen_internal_orig);
+			// void *dlopen_global_var_ptr = MSFindSymbol(libdyldImage, "__ZN5dyld45gDyldE"); // if this var exists, it means we're on a version new enough to hook dlopen directly again
+			// if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_14_1 && !dlopen_global_var_ptr) {
+			// 	void *dlopen_internal_ptr = MSFindSymbol(libdyldImage, "__ZL15dlopen_internalPKciPv");
+			// 	MSHookFunction(dlopen_internal_ptr, (void *)$dlopen_internal, (void* *)&dlopen_internal_orig);
+			// }
+			// else {
+			// 	MSHookFunction(&dlopen, (void *)$dlopen, (void* *)&dlopen_orig);
+			// 	void *dlopen_from_ptr = dlsym(libdyldHandle, "dlopen_from");
+			// 	if (dlopen_from_ptr) {
+			// 		MSHookFunction(dlopen_from_ptr, (void *)$dlopen_internal, (void* *)&dlopen_internal_orig);
+			// 	}
+			// }
+
+			const void* _dyld_get_shared_cache_range(size_t* length);
+
+			size_t sharedlen=0;
+			const void* sharedbase = _dyld_get_shared_cache_range(&sharedlen);
+
+			struct rebinding rebindings = {
+				.name="dlopen",
+				.replacement = $dlopen,
+				.replaced = (void**)&dlopen_orig
+			};
+
+			const char* tweakloader = jbroot("/usr/lib/TweakLoader.dylib");
+
+			uint32_t c = _dyld_image_count();
+			for (uint32_t i = 0; i < c; i++) {
+				uint64_t slide = _dyld_get_image_vmaddr_slide(i);
+				void* header = (void*)_dyld_get_image_header(i);
+				if( (uint64_t)header < (uint64_t)sharedbase || (uint64_t)header > ((uint64_t)sharedbase+sharedlen) ) {
+					if(pathFileEqual(_dyld_get_image_name(i), tweakloader)) {
+						rebind_symbols_image(header, slide, &rebindings, 1);
+						break;
+					}
 				}
 			}
 		}
