@@ -25,6 +25,7 @@
 #import <dlfcn.h>
 #import <mach-o/dyld.h>
 
+BOOL g_ChoicyLoadTweaksOnce = NO;
 BOOL g_tweakInjectionDisabled = NO;
 BOOL g_customTweakConfigurationEnabled = NO;
 
@@ -122,6 +123,11 @@ BOOL shouldLoadDylib(NSString *dylibPath)
 {
 	NSString *dylibName = [dylibPath.lastPathComponent stringByDeletingPathExtension];
 	HBLogDebugWeak(@"Checking whether %@.dylib should be loaded...", dylibName);
+
+	if(g_tweakInjectionDisabled && !g_ChoicyLoadTweaksOnce && [dylibName isEqualToString:@"OldABI"]) {
+		HBLogDebugWeak(@"%@.dylib ❌ (tweak injection disabled)", dylibName);
+		return NO;
+	}
 
 	if (isTweakDylib(dylibPath)) {
 		// dylibs crucial for Choicy itself to work
@@ -293,10 +299,15 @@ bool pathFileEqual(const char* path1, const char* path2)
 			g_tweakInjectionDisabled = NO;
 		}
 
+		const char* _CHOICY_LOAD_TWEAKS_ONCE = getenv("_CHOICY_LOAD_TWEAKS_ONCE");
+		if(_CHOICY_LOAD_TWEAKS_ONCE && atoi(_CHOICY_LOAD_TWEAKS_ONCE)==1) {
+			g_ChoicyLoadTweaksOnce = YES;
+		}
+
 		if (g_tweakInjectionDisabled || g_customTweakConfigurationEnabled || g_globalDeniedTweaks.count > 0) {
 			// If g_tweakInjectionDisabled is true for an application other than SpringBoard,
 			// it means that tweak injection was enabled for one launch via 3D touch and we should not do anything
-			if (g_isApplication && !isAppPlugIn && g_tweakInjectionDisabled) {
+			if (g_isApplication && !isAppPlugIn && g_tweakInjectionDisabled && g_ChoicyLoadTweaksOnce) {
 				if (![g_bundleIdentifier isEqualToString:kSpringboardBundleID]) {
 					HBLogDebugWeak(@"Tweak injection has been enabled via 3D touch, Choicy will do nothing!");
 					return;

@@ -102,6 +102,7 @@
 	self.tweakList = [tweakListM copy];
 }
 
+/*
 - (NSArray *)tweakListForExecutableAtPath:(NSString *)executablePath
 {
 	HBLogDebugWeak(@"tweakListForExecutableAtPath:%@", executablePath);
@@ -150,6 +151,33 @@
 					*stop = YES;
 				}
 			}];
+		}
+	}];
+
+	return tweakListForExecutable;
+}
+//*/
+
+- (NSArray *)tweakListForExecutableAtPath:(NSString *)executablePath
+{
+	HBLogDebugWeak(@"tweakListForExecutableAtPath:%@", executablePath);
+	if (!executablePath) return nil;
+
+	NSString *executableName = executablePath.lastPathComponent;
+
+	NSMutableArray *tweakListForExecutable = [NSMutableArray new];
+	[self.tweakList enumerateObjectsUsingBlock:^(CHPTweakInfo *tweakInfo, NSUInteger idx, BOOL *stop) {
+
+		if (executableName) {
+			if ([tweakInfo.filterExecutables containsObject:executableName]) {
+				[tweakListForExecutable addObject:tweakInfo];
+				return;
+			}
+		}
+
+		if (tweakInfo.filterBundles) {
+			[tweakListForExecutable addObject:tweakInfo];
+			return;
 		}
 	}];
 

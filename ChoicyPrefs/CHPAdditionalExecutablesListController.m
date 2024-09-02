@@ -35,6 +35,12 @@
 	return addButton;
 }
 
+//for high version of ios16, ios17+
+- (id)editBarButtonItem
+{
+	return [self _editButtonBarItem];
+}
+
 - (id)previewStringForSpecifier:(PSSpecifier *)specifier
 {
 	return [CHPListController previewStringForSpecifier:specifier];
@@ -63,7 +69,7 @@
 	UIAlertController *executableAlert = [UIAlertController alertControllerWithTitle:localize(@"SELECT_EXECUTABLE") message:localize(@"SELECT_EXECUTABLE_MESSAGE") preferredStyle:UIAlertControllerStyleAlert];
 
 	[executableAlert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
-		textField.placeholder = localize(@"PATH");
+		textField.placeholder = [NSString stringWithFormat:@"%@ (%@)",localize(@"PATH"),localize(@"Path based on jbroot")];
 		if (@available(iOS 13, *)) {
 			textField.textColor = [UIColor labelColor];
 		}
@@ -100,25 +106,26 @@
 {
 	if ([_additionalExecutables containsObject:executablePath]) return;
 
-	if (![[NSFileManager defaultManager] fileExistsAtPath:executablePath]) {
+	if (![[NSFileManager defaultManager] fileExistsAtPath:jbroot(executablePath)]) {
 		[self showErrorMessage:localize(@"ERROR_FILE_NOT_FOUND")];
 		return;
 	}
 
-	if (!isFileAtPathMacho(executablePath)) {
+	if (!isFileAtPathMacho(jbroot(executablePath))) {
 		[self showErrorMessage:localize(@"ERROR_FILE_NO_EXECUTABLE")];
 		return;
 	}
 
-	if (![[CHPTweakList sharedInstance] oneOrMoreTweaksInjectIntoExecutableAtPath:executablePath]) {
-		[self showErrorMessage:localize(@"ERROR_NO_TWEAKS_INJECT")];
-		return;
-	}
+	// maybe we just want to disable tweak for the process
+	// if (![[CHPTweakList sharedInstance] oneOrMoreTweaksInjectIntoExecutableAtPath:executablePath]) {
+	// 	[self showErrorMessage:localize(@"ERROR_NO_TWEAKS_INJECT")];
+	// 	return;
+	// }
 
 	[_additionalExecutables addObject:executablePath];
 	[self saveAdditionalExecutables];
 
-	PSSpecifier *specifierToInsert = [CHPListController createSpecifierForExecutable:executablePath named:executablePath];
+	PSSpecifier *specifierToInsert = [CHPListController createSpecifierForExecutable:jbroot(executablePath) named:executablePath];
 	[self insertSpecifier:specifierToInsert atEndOfGroup:0 animated:YES];
 }
 
@@ -151,7 +158,7 @@
 		[_specifiers addObject:groupSpecifier];
 
 		[_additionalExecutables enumerateObjectsUsingBlock:^(NSString *executablePath, NSUInteger idx, BOOL *stop) {
-			[_specifiers addObject:[CHPListController createSpecifierForExecutable:executablePath named:executablePath]];
+			[_specifiers addObject:[CHPListController createSpecifierForExecutable:jbroot(executablePath) named:executablePath]];
 		}];
 	}
 

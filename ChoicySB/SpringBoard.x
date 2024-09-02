@@ -58,9 +58,18 @@ BOOL choicy_shouldShow3DTouchOptionForDisableTweakInjectionState(BOOL disableTwe
 	toggleOneTimeApplicationID = nil;
 	if (toggleOnce) {
 		NSMutableDictionary *environmentM = [executionContext.environment mutableCopy];
-		BOOL newValue = !choicy_shouldDisableTweakInjectionForApplication(bundleIdentifier);
-		[environmentM setObject:@(newValue) forKey:@"_MSSafeMode"];
-		[environmentM setObject:@(newValue) forKey:@"_SafeMode"];
+		if(choicy_shouldDisableTweakInjectionForApplication(bundleIdentifier)) {
+			//tweak disabled in preferences, so we want to enable them for this time launch
+			[environmentM setObject:@(1) forKey:@"_CHOICY_LOAD_TWEAKS_ONCE"];
+			[environmentM removeObjectForKey:@"_MSSafeMode"];
+			[environmentM removeObjectForKey:@"_SafeMode"];
+		}
+		else {
+			//tweak not disabled in preferences, so we want to disable them for this time launch
+			[environmentM setObject:@(1) forKey:@"_MSSafeMode"];
+			[environmentM setObject:@(1) forKey:@"_SafeMode"];
+			[environmentM removeObjectForKey:@"_CHOICY_LOAD_TWEAKS_ONCE"];
+		}
 		executionContext.environment = [environmentM copy];
 	}
 	
