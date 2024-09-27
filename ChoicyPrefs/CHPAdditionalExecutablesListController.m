@@ -136,10 +136,20 @@
 
 - (BOOL)performDeletionActionForSpecifier:(PSSpecifier *)specifier
 {
+	//Due to Choicy's prefs logic, it is difficult to determine how to delete its configuration through a path (it may be in daemonSettings or appSettings)
+	UIAlertController *alert = [UIAlertController alertControllerWithTitle:localize(@"WARNING_ALERT_TITLE") message:
+	@"You need to manually remove it from appSettings/daemonSettings/additionalExecutables in jbroot:/var/mobile/Library/Preferences/com.opa334.choicyprefs.plist and execute 'killall -9 cfprefsd'" preferredStyle:UIAlertControllerStyleAlert];
+	UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:localize(@"CANCEL") style:UIAlertActionStyleCancel handler:nil];
+	[alert addAction:cancelAction];
+	[self presentViewController:alert animated:YES completion:nil];
+	[self reloadSpecifiers];
+	return NO;
+
+
 	BOOL orig = [super performDeletionActionForSpecifier:specifier];
 
 	NSString *executablePath = [specifier propertyForKey:@"executablePath"];
-	[_additionalExecutables removeObject:executablePath];
+	[_additionalExecutables removeObject:rootfs(executablePath)];
 	[self saveAdditionalExecutables];
 
 	return orig;
